@@ -441,6 +441,95 @@ class TestDoctests:
         reprec = testdir.inline_run(p, "--doctest-modules")
         reprec.assertoutcome(failed=1)
 
+    def test_doctestmodule_basiclogger(self, testdir):
+        p = testdir.makepyfile(
+            """
+            '''
+                >>> import logging
+                >>> logging.basicConfig(level=logging.DEBUG)
+                >>> logging.debug('debug message')
+                DEBUG:root:debug message
+                >>> logging.info('info message')
+                INFO:root:info message
+                >>> logging.error('error message')
+                ERROR:root:error message
+
+            '''
+        """
+        )
+        reprec = testdir.inline_run(p, "--doctest-modules", "--doctest-loggers=root")
+        reprec.assertoutcome(failed=1)
+
+    def test_doctestmodule_namedlogger(self, testdir):
+        p = testdir.makepyfile(
+            """
+            '''
+                >>> import logging
+                >>> logger = logging.getLogger('mylogger')
+                >>> logger.setLevel(logging.DEBUG)
+                >>> logger.setHandler(logging.StreamHandler())
+                >>> logger.debug('debug message')
+                DEBUG:root:debug message
+                >>> logger.info('info message')
+                INFO:root:info message
+                >>> logger.error('error message')
+                ERROR:root:error message
+
+            '''
+        """
+        )
+        reprec = testdir.inline_run(
+            p, "--doctest-modules", "--doctest-loggers=mylogger"
+        )
+        reprec.assertoutcome(failed=1)
+
+    def test_doctestmodule_twologgers(self, testdir):
+        p = testdir.makepyfile(
+            """
+            '''
+                >>> import logging
+                >>> logger1 = logging.getLogger('mylogger1')
+                >>> logger1.setLevel(logging.DEBUG)
+                >>> logger1.setHandler(logging.StreamHandler())
+                >>> logger1.debug('debug message')
+                DEBUG:root:debug message
+                >>> logger1.info('info message')
+                INFO:root:info message
+                >>> logger1.error('error message')
+                ERROR:root:error message
+                >>> logger2 = logging.getLogger('mylogger2')
+                >>> logger2.setLevel(logging.DEBUG)
+                >>> logger2.setHandler(logging.StreamHandler())
+                >>> logger2.debug('debug message')
+                DEBUG:root:debug message
+                >>> logger2.info('info message')
+                INFO:root:info message
+                >>> logger2.error('error message')
+                ERROR:root:error message
+
+            '''
+        """
+        )
+        reprec = testdir.inline_run(
+            p, "--doctest-modules", "--doctest-loggers", "mylogger1", "mylogger2"
+        )
+        reprec.assertoutcome(failed=1)
+
+    def test_doctestmodule_warningslogger(self, testdir):
+        p = testdir.makepyfile(
+            """
+            '''
+                >>> import logging, warnings
+                >>> logging.captureWarnings(True)
+                >>> warnings.warn('This is a warning!')
+                This is a warning!
+
+            '''
+        """
+        )
+        reprec = testdir.inline_run(p, "--doctest-modules", "--doctest-loggers")
+        reprec.assertoutcome(failed=1)
+
     def test_doctestmodule_external_and_issue116(self, testdir):
         p = testdir.mkpydir("hello")
         p.join("__init__.py").write(
