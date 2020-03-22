@@ -1,6 +1,7 @@
 """ discover and run doctests in modules and test files."""
 import bdb
 import inspect
+import logging
 import platform
 import sys
 import traceback
@@ -99,6 +100,15 @@ def pytest_addoption(parser):
         default=False,
         help="for a given doctest, continue to run after the first failure",
         dest="doctest_continue_on_failure",
+    )
+    group.addoption(
+        "--doctest-loggers",
+        action="store",
+        default=[],
+        nargs="*",
+        metavar="log",
+        help="doctest output from indicated loggers",
+        dest="doctest_loggers",
     )
 
 
@@ -240,12 +250,29 @@ class DoctestItem(pytest.Item):
             self.dtest.globs.update(globs)
 
     def runtest(self) -> None:
+
+        loggernames = self.config.getvalue("doctest_loggers")
+        if loggernames:
+            for logname in loggernames:
+                log = logging.getLogger(logname)
+                formatter = log.handlers[0].formatter
+                handler = logging.StreamHandler(self.runner._fakeout)
+                handler.setFormatter(formatter)  # type: ignore
+                log.addHandler(handler)
+            logging.getLogger("py.warnings").addHandler(handler)
+
         _check_all_skipped(self.dtest)
         self._disable_output_capturing_for_darwin()
         failures = []  # type: List[doctest.DocTestFailure]
         self.runner.run(self.dtest, out=failures)
         if failures:
             raise MultipleDoctestFailures(failures)
+
+        if loggernames:
+            for logname in loggernames:
+                log = logging.getLogger(logname)
+                del log.handlers[-1]
+            del logging.getLogger("py.warnings").handlers[-1]
 
     def _disable_output_capturing_for_darwin(self):
         """
@@ -384,12 +411,28 @@ class DoctestTextfile(pytest.Module):
             continue_on_failure=_get_continue_on_failure(self.config),
         )
 
+        loggernames = self.config.getvalue("doctest_loggers", [])
+        if loggernames:
+            for logname in loggernames:
+                log = logging.getLogger(logname)
+                formatter = log.handlers[0].formatter
+                handler = logging.StreamHandler(self.runner._fakeout)
+                handler.setFormatter(formatter)  # type: ignore
+                log.addHandler(handler)
+            logging.getLogger("py.warnings").addHandler(handler)
+
         parser = doctest.DocTestParser()
         test = parser.get_doctest(text, globs, name, filename, 0)
         if test.examples:
             yield DoctestItem.from_parent(
                 self, name=test.name, runner=runner, dtest=test
             )
+
+        if loggernames:
+            for logname in loggernames:
+                log = logging.getLogger(logname)
+                del log.handlers[-1]
+            del logging.getLogger("py.warnings").handlers[-1]
 
 
 def _check_all_skipped(test):
